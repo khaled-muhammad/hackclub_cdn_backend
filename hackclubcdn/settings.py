@@ -182,3 +182,10 @@ CORS_ORIGIN_ALLOW_ALL = True
 CSRF_TRUSTED_ORIGINS = [
     "https://hackclub-cdn.khaled.hackclub.app",
 ]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # frontend local dev
+    # "https://yourfrontenddomain.com",  # production domain
+]
+
+CORS_ALLOW_CREDENTIALS = True  # if using cookies or auth
