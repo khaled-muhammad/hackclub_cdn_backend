@@ -87,7 +87,7 @@ def slack_callback(request):
     short_auth.save()
 
     # Redirect with short-lived auth ID
-    if user.has_usable_password():
+    if user.password and user.has_usable_password():
         redirect_url = f"{FRONTEND_ENDPOINT}/auth/auth_session?auth_code={auth_token}"
     else:
         redirect_url = f"{FRONTEND_ENDPOINT}/auth/set_new_password?auth_code={auth_token}"
