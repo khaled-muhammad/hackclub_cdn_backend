@@ -24,11 +24,12 @@ load_dotenv()
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY')
-SLACK_CLIENT_ID = os.getenv('SLACK_CLIENT_ID')
+SECRET_KEY          = os.getenv('SECRET_KEY')
+SLACK_CLIENT_ID     = os.getenv('SLACK_CLIENT_ID')
 SLACK_CLIENT_SECRET = os.getenv('SLACK_CLIENT_SECRET')
-REDIRECT_URI = os.getenv('REDIRECT_URI')
-HACK_CLUB_TEAM_ID = os.getenv('HACK_CLUB_TEAM_ID')
+REDIRECT_URI        = os.getenv('REDIRECT_URI')
+HACK_CLUB_TEAM_ID   = os.getenv('HACK_CLUB_TEAM_ID')
+FRONTEND_ENDPOINT   = os.getenv('FRONTEND_ENDPOINT')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True

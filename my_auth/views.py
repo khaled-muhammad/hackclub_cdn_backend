@@ -1,20 +1,23 @@
 import requests
+import urllib.parse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.auth.models import User
+from django.http import HttpResponseRedirect
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from .models import Profile, ShortLivedAuth
+import secrets
 
-# Load environment variables
-
-# Read from environment
+User = get_user_model()
 
 SLACK_CLIENT_ID     = settings.SLACK_CLIENT_ID
 SLACK_CLIENT_SECRET = settings.SLACK_CLIENT_SECRET
 REDIRECT_URI        = settings.REDIRECT_URI
 HACK_CLUB_TEAM_ID   = settings.HACK_CLUB_TEAM_ID
+FRONTEND_ENDPOINT   = settings.FRONTEND_ENDPOINT
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -23,7 +26,6 @@ def slack_callback(request):
     if not code:
         return Response({'error': 'No code provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Step 1: Exchange code for token
     token_res = requests.post('https://slack.com/api/openid.connect.token', data={
         'code': code,
         'client_id': SLACK_CLIENT_ID,
@@ -40,29 +42,25 @@ def slack_callback(request):
     if not access_token:
         return Response({'error': 'No access token returned'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Step 2: Get user info
     user_res = requests.get('https://slack.com/api/openid.connect.userInfo', headers={
         'Authorization': f'Bearer {access_token}'
     })
 
     user_data = user_res.json()
-
     if 'sub' not in user_data:
         return Response({'error': 'Invalid OpenID user info'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Step 3: Validate team ID
     team_id = user_data.get('https://slack.com/team_id')
     if team_id != HACK_CLUB_TEAM_ID:
         return Response({'error': 'User is not in Hack Club Slack'}, status=status.HTTP_403_FORBIDDEN)
 
-    # Step 4: Prepare user data
     email = user_data.get('email')
     name = user_data.get('name')
     picture = user_data.get('picture')
     if not email:
         return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    user, created = User.objects.get_or_create(
+    user, _ = User.objects.get_or_create(
         email=email,
         defaults={
             'username': email,
@@ -71,19 +69,58 @@ def slack_callback(request):
         }
     )
 
-    # Step 5: Generate JWT
+    profile, _ = Profile.objects.get_or_create(user=user)
+    profile.profile_picture = picture
+    profile.save()
+
     refresh = RefreshToken.for_user(user)
     access = refresh.access_token
 
-    return Response({
-        'access': str(access),
-        'refresh': str(refresh),
-        'profile': {
-            'id': user.id,
-            'name': user.get_full_name(),
-            'email': user.email,
-            'image': picture,
-            'team_id': team_id,
-        },
-        'created': created,
-    })
+    auth_token = secrets.token_urlsafe(32)
+
+    short_auth = ShortLivedAuth.objects.create(
+        profile=profile,
+        access=str(access),
+        refresh=str(refresh),
+        token=auth_token,
+    )
+    short_auth.save()
+
+    # Redirect with short-lived auth ID
+    if user.has_usable_password():
+        redirect_url = f"{FRONTEND_ENDPOINT}/auth/auth_session?auth_code={auth_token}"
+    else:
+        redirect_url = f"{FRONTEND_ENDPOINT}/auth/set_new_password?auth_code={auth_token}"
+
+    return HttpResponseRedirect(redirect_url)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def temp_auth_code(request):
+    auth_token = request.data.get('auth_code')
+    if not auth_token:
+        return Response({'error': 'Missing auth_code'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        short_auth = ShortLivedAuth.objects.get(token=auth_token)
+    except ShortLivedAuth.DoesNotExist:
+        return Response({'error': 'Invalid or expired auth_code'}, status=status.HTTP_404_NOT_FOUND)
+
+    if short_auth.is_expired():
+        short_auth.delete()
+        return Response({'error': 'Auth code expired'}, status=status.HTTP_403_FORBIDDEN)
+
+    data = {
+        'access': short_auth.access,
+        'refresh': short_auth.refresh,
+        'user': {
+            'id': short_auth.profile.user.id,
+            'name': short_auth.profile.user.get_full_name(),
+            'email': short_auth.profile.user.email,
+            'image': short_auth.profile.profile_picture,
+        }
+    }
+
+    short_auth.delete()
+    return Response(data, status=status.HTTP_200_OK)
