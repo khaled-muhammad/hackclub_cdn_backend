@@ -17,8 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+from my_auth.views import slack_callback
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    path('api/slack/callback', )
+    path('api/slack/callback', slack_callback)
 ]
