@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -111,16 +111,36 @@ def temp_auth_code(request):
         short_auth.delete()
         return Response({'error': 'Auth code expired'}, status=status.HTTP_403_FORBIDDEN)
 
-    data = {
-        'access': short_auth.access,
-        'refresh': short_auth.refresh,
+    user = short_auth.profile.user
+    profile = short_auth.profile
+
+    response = JsonResponse({
         'user': {
-            'id': short_auth.profile.user.id,
-            'name': short_auth.profile.user.get_full_name(),
-            'email': short_auth.profile.user.email,
-            'image': short_auth.profile.profile_picture,
+            'id': user.id,
+            'name': user.get_full_name(),
+            'email': user.email,
+            'image': profile.profile_picture,
         }
-    }
+    })
+
+    response.set_cookie(
+        key='access_token',
+        value=short_auth.access,
+        httponly=True,
+        secure=True,
+        samesite='Lax',
+        max_age=300
+    )
+
+    response.set_cookie(
+        key='refresh_token',
+        value=short_auth.refresh,
+        httponly=True,
+        secure=True,
+        samesite='Lax',
+        max_age=86400
+    )
 
     short_auth.delete()
-    return Response(data, status=status.HTTP_200_OK)
+
+    return response
