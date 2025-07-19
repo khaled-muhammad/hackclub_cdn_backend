@@ -127,7 +127,7 @@ def temp_auth_code(request):
         key='access_token',
         value=short_auth.access,
         httponly=True,
-        secure=True,
+        # secure=True,
         samesite='Lax',
         max_age=300
     )
@@ -136,7 +136,7 @@ def temp_auth_code(request):
         key='refresh_token',
         value=short_auth.refresh,
         httponly=True,
-        secure=True,
+        # secure=True,
         samesite='Lax',
         max_age=86400
     )
