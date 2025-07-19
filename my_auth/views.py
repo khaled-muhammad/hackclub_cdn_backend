@@ -1,4 +1,3 @@
-import os
 import requests
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -6,16 +5,16 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
-from dotenv import load_dotenv
+from django.conf import settings
 
 # Load environment variables
-load_dotenv()
 
 # Read from environment
-SLACK_CLIENT_ID = os.getenv('SLACK_CLIENT_ID')
-SLACK_CLIENT_SECRET = os.getenv('SLACK_CLIENT_SECRET')
-REDIRECT_URI = os.getenv('REDIRECT_URI')
-HACK_CLUB_TEAM_ID = os.getenv('HACK_CLUB_TEAM_ID')
+
+SLACK_CLIENT_ID     = settings.SLACK_CLIENT_ID
+SLACK_CLIENT_SECRET = settings.SLACK_CLIENT_SECRET
+REDIRECT_URI        = settings.REDIRECT_URI
+HACK_CLUB_TEAM_ID   = settings.HACK_CLUB_TEAM_ID
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
