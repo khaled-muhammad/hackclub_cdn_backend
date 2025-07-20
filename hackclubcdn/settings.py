@@ -53,6 +53,7 @@ INSTALLED_APPS = [
 
     #my apps
     'my_auth',
+    'fronty',
 ]
 
 MIDDLEWARE = [
