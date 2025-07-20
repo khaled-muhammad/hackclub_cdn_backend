@@ -128,7 +128,7 @@ def temp_auth_code(request):
         value=short_auth.access,
         httponly=True,
         # secure=True,
-        samesite=None,
+        samesite='None',
         max_age=300
     )
 
@@ -137,7 +137,7 @@ def temp_auth_code(request):
         value=short_auth.refresh,
         httponly=True,
         # secure=True,
-        samesite=None,
+        samesite='None',
         max_age=86400
     )
 
