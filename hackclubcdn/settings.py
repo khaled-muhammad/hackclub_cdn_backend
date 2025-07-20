@@ -184,7 +184,7 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # frontend local dev
+    "https://localhost:5173",  # frontend local dev
     # "https://yourfrontenddomain.com",  # production domain
 ]
 
