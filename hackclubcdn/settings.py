@@ -181,10 +181,12 @@ CORS_ORIGIN_ALLOW_ALL = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://hackclub-cdn.khaled.hackclub.app",
+    "https://hackclub-cdn.netlify.app",
 ]
 
 CORS_ALLOWED_ORIGINS = [
     "https://localhost:5173",  # frontend local dev
+    "https://hackclub-cdn.netlify.app",
     # "https://yourfrontenddomain.com",  # production domain
 ]
 
