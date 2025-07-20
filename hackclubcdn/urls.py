@@ -15,12 +15,14 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, re_path
 
+from fronty.views import FrontendAppView
 from my_auth.views import slack_callback, temp_auth_code
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/slack/callback', slack_callback),
     path('api/auth/retrieve', temp_auth_code),
+    re_path(r'^.*$', FrontendAppView.as_view()),
 ]
