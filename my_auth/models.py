@@ -11,6 +11,9 @@ class Profile(models.Model):
     user            = models.ForeignKey(User, on_delete=models.CASCADE)
     profile_picture = models.URLField(User, null=True, blank=True)
 
+    def __str__(self):
+        return self.user.username
+
 class ShortLivedAuth(models.Model):
     profile    = models.ForeignKey('Profile', on_delete=models.CASCADE)
     token      = models.CharField(max_length=64, unique=True)
