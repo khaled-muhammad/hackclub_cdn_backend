@@ -67,6 +67,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'my_auth.authentication.JWTAuthenticationFromCookie',
+    )
+}
+
 ROOT_URLCONF = 'hackclubcdn.urls'
 
 TEMPLATES = [
