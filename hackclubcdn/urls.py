@@ -18,11 +18,14 @@ from django.contrib import admin
 from django.urls import path, re_path
 
 from fronty.views import FrontendAppView
-from my_auth.views import slack_callback, temp_auth_code
+from my_auth.views import slack_callback, temp_auth_code, update_password, fetch_me, CookieTokenRefreshView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/slack/callback', slack_callback),
     path('api/auth/retrieve', temp_auth_code),
+    path('api/auth/reset_password', update_password),
+    path('api/auth/me', fetch_me),
+    path('api/auth/refresh', CookieTokenRefreshView.as_view(), name='token_refresh'),
     re_path(r'^.*$', FrontendAppView.as_view()),
 ]
