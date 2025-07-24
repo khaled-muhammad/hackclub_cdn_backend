@@ -1,6 +1,8 @@
-django
-djangorestframework
-django-cors-headers
-requests
-djangorestframework-simplejwt
-dotenv
+django>=4.2.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.0.0
+requests>=2.28.0
+httpx>=0.25.0
+djangorestframework-simplejwt>=5.2.0
+python-dotenv>=0.19.0
+pillow>=9.0.0
