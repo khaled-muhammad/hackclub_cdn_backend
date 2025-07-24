@@ -17,7 +17,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 
 from .models import (
-    Folder, File, FileVersion, Share, ShareAccessLog, 
+    Folder, File, FileVersion, Share, ShareAccessLog, SharedUserPermission, 
     StarredItem, ActivityLog, TrashItem, FileAnalytics, ProcessingJob
 )
 from .serializers import (
@@ -342,12 +342,21 @@ class ShareViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         profile = Profile.objects.get(user=self.request.user)
         return Share.objects.filter(
-            Q(owner=profile) | Q(shared_with_user=profile)
-        ).order_by('-created_at')
+            Q(owner=profile) | Q(shareduserpermission__user=profile)
+        ).distinct().order_by('-created_at')
 
     def perform_create(self, serializer):
         profile = Profile.objects.get(user=self.request.user)
-        serializer.save(owner=profile)
+        shared_data = self.request.data.get('shared_users', [])
+        share = serializer.save(owner=profile)
+
+
+        for item in shared_data:
+                SharedUserPermission.objects.create(
+                        share=share,
+                        user_id=item['user_id'],
+                        permission_level=item.get('permission_level', 'view')
+                )
 
     @action(detail=False, methods=['get'])
     def public(self, request):
