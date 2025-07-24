@@ -352,11 +352,109 @@ class ShareViewSet(viewsets.ModelViewSet):
 
 
         for item in shared_data:
+                profile = Profile.objects.get(user__email=item['user_email'])
                 SharedUserPermission.objects.create(
                         share=share,
-                        user_id=item['user_id'],
+                        user=profile,
                         permission_level=item.get('permission_level', 'view')
                 )
+
+    @action(detail=True, methods=['get'])
+    def shared_users(self, request, pk=None):
+        share = self.get_object()
+
+        perms = SharedUserPermission.objects.filter(share=share)
+        data  = [
+            {
+                "user_id": p.user.id,
+                "username": p.user.user.username,
+                "permission_level": p.permission_level
+            } for p in perms
+        ]
+
+        return Response(data)
+    
+    @action(detail=True, methods=['post'])
+    def add_user(self, request, pk=None):
+        share               = self.get_object()
+        user_email          = request.data.get("user_email")
+        permission_level    = request.data.get("permission_level", "view")
+
+        if not user_email:
+                return Response({"error": "user_email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = Profile.objects.get(user__email=user_email)
+        except:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        obj, created = SharedUserPermission.objects.update_or_create(
+            share=share,
+            user=user,
+            defaults={"permission_level": permission_level}
+        )
+
+        return Response({
+            "message": "User added" if created else "Permission updated",
+            "user_email": user.user.email,
+            "permission_level": permission_level
+        })
+    
+    @action(detail=True, methods=['delete'])
+    def remove_user(self, request, pk=None):
+        share      = self.get_object()
+        user_email = request.query_params.get("user_email")
+
+        if not user_email:
+            return Response({
+                "error": "user_email is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = Profile.objects.get(user__email=user_email)
+        except Profile.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        deleted, _ = SharedUserPermission.objects.filter(share=share, user=user).delete()
+
+        if deleted:
+            return Response({"message": "User access has been removed"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "User doesn't have access to this share!"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        resource_type = request.query_params.get("resource_type")
+        resource_id   = request.query_params.get("resource_id")
+
+        if not resource_type or not resource_id:
+            return Response({"error": "resource_type and resource_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        profile = Profile.objects.get(user=request.user)
+        shares  = Share.objects.filter(resource_type=resource_type, resource_id=resource_id)
+
+        data = []
+
+        for share in shares:
+            shared_users = SharedUserPermission.objects.filter(share=share)
+            data.append({
+                "share_id": str(share.id),
+                "owner": share.owner.user.username,
+                "is_public": share.is_public,
+                "public_token": share.public_token if share.is_public else None,
+                "expires_at": share.expires_at,
+                "password_protected": share.password_protected,
+                "your_permission": shared_users.filter(user=profile).first().permission_level if shared_users.filter(user=profile).exists() else None,
+                "shared_with": [
+                        {
+                        "user_id": su.user.id,
+                        "username": su.user.user.username,
+                        "permission_level": su.permission_level
+                        }
+                        for su in shared_users
+                ]
+            })
+        
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
     def public(self, request):

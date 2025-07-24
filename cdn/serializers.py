@@ -93,7 +93,6 @@ class FileSerializer(serializers.ModelSerializer):
 
 class ShareSerializer(serializers.ModelSerializer):
     owner_detail = ProfileSerializer(source='owner', read_only=True)
-    shared_with_detail = ProfileSerializer(source='shared_with_user', read_only=True)
     resource_detail = serializers.SerializerMethodField()
     is_expired = serializers.BooleanField(read_only=True)
     can_download = serializers.BooleanField(read_only=True)
@@ -102,8 +101,7 @@ class ShareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Share
         fields = [
-            'id', 'resource_type', 'resource_id', 'owner', 'owner_detail',
-            'shared_with_user', 'shared_with_detail', 'permission_level',
+            'id', 'resource_type', 'resource_id', 'owner', 'owner_detail', 'permission_level',
             'is_public', 'public_token', 'password_protected', 'expires_at',
             'allow_download', 'allow_preview', 'download_limit', 'download_count',
             'resource_detail', 'is_expired', 'can_download', 'access_logs_count',

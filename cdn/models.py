@@ -154,7 +154,7 @@ class Share(models.Model):
     permission_level    = models.CharField(max_length=20, choices=PERMISSION_LEVELS, default='view')
     
     is_public           = models.BooleanField(default=False)
-    public_token        = models.CharField(max_length=255, unique=True, blank=True)
+    public_token        = models.CharField(max_length=255, unique=True, blank=True, null=True)
     password_protected  = models.BooleanField(default=False)
     password_hash       = models.CharField(max_length=255, blank=True)
     
@@ -177,9 +177,11 @@ class Share(models.Model):
         ]
     
     def __str__(self):
-        return f"Share: {self.resource_type} {self.resource_id} by {self.owner.username}"
+        return f"Share: {self.resource_type} {self.resource_id} by {self.owner.user.username}"
     
     def save(self, *args, **kwargs):
+        print(self.is_public)
+        print("===========")
         if self.is_public and not self.public_token:
             self.public_token = secrets.token_urlsafe(32)
         super().save(*args, **kwargs)

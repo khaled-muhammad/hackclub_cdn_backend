@@ -11,6 +11,7 @@ class FileAdmin(admin.ModelAdmin):
 
 admin.site.register(Folder)
 admin.site.register(TrashItem)
+admin.site.register(Share)
 
 # @admin.register(Share)
 # class ShareAdmin(admin.ModelAdmin):
