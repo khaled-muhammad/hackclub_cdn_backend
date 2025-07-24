@@ -78,6 +78,8 @@ class File(models.Model):
     updated_at    = models.DateTimeField(auto_now=True)
     last_accessed = models.DateTimeField(auto_now_add=True)
     
+    is_trashed = models.BooleanField(default=False)
+
     class Meta:
         unique_together = ['owner', 'folder', 'filename']
         indexes = [
@@ -298,7 +300,8 @@ class TrashItem(models.Model):
     original_name       = models.CharField(max_length=255)
     original_path       = models.TextField(blank=True)
     deleted_at          = models.DateTimeField(auto_now_add=True)
-    permanent_delete_at = models.DateTimeField()  # Auto calc in save
+    permanent_delete_at = models.DateTimeField()
+    cdn_url             = models.URLField()
     
     class Meta:
         indexes = [

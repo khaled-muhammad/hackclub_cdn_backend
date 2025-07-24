@@ -46,7 +46,6 @@ class FolderViewSet(viewsets.ModelViewSet):
         profile = Profile.objects.get(user=self.request.user)
         serializer.save(owner=profile)
         
-        # Log activity
         ActivityLog.objects.create(
             user=profile,
             action_type='upload',
@@ -86,14 +85,11 @@ class FolderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def contents(self, request, pk=None):
-        """Get folder contents (subfolders and files)"""
         folder = self.get_object()
         
-        # Get subfolders
         subfolders = folder.children.all().order_by('name')
         folder_serializer = FolderSerializer(subfolders, many=True, context={'request': request})
         
-        # Get files
         files = folder.files.all().order_by('filename')
         file_serializer = FileSerializer(files, many=True, context={'request': request})
         
@@ -104,17 +100,14 @@ class FolderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def root(self, request):
-        """Get root folders for the user"""
         profile = Profile.objects.get(user=request.user)
         
-        # Get or create root folder
         root_folder, created = Folder.objects.get_or_create(
             owner=profile,
             is_root=True,
             defaults={'name': 'Root', 'path': ''}
         )
         
-        # Get root contents
         subfolders = Folder.objects.filter(owner=profile, parent=root_folder).order_by('name')
         files = File.objects.filter(owner=profile, folder=root_folder).order_by('filename')
         
@@ -136,12 +129,10 @@ class FileViewSet(viewsets.ModelViewSet):
         profile = Profile.objects.get(user=self.request.user)
         queryset = File.objects.filter(owner=profile)
         
-        # Filter by folder if specified
         folder_id = self.request.query_params.get('folder_id')
         if folder_id:
             queryset = queryset.filter(folder_id=folder_id)
         
-        # Search functionality
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -149,7 +140,6 @@ class FileViewSet(viewsets.ModelViewSet):
                 Q(original_filename__icontains=search)
             )
         
-        # Filter by file type
         file_type = self.request.query_params.get('type')
         if file_type:
             if file_type == 'images':
@@ -165,18 +155,17 @@ class FileViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-created_at')
 
     def perform_destroy(self, instance):
-        # Move to trash instead of permanent delete
         profile = Profile.objects.get(user=self.request.user)
         
         TrashItem.objects.create(
             user=profile,
             resource_type='file',
             resource_id=instance.id,
-            original_name=instance.filename,
+            original_name=instance.original_filename,
+            cdn_url=instance.cdn_url,
             original_path=instance.folder.path if instance.folder else ''
         )
         
-        # Log activity
         ActivityLog.objects.create(
             user=profile,
             action_type='delete',
@@ -186,8 +175,6 @@ class FileViewSet(viewsets.ModelViewSet):
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
         
-        super().perform_destroy(instance)
-
     def get_client_ip(self):
         x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
@@ -198,7 +185,6 @@ class FileViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def upload(self, request):
-        """Register a file that was uploaded to CDN by client"""
         serializer = FileUploadSerializer(data=request.data)
         
         if serializer.is_valid():
@@ -214,7 +200,6 @@ class FileViewSet(viewsets.ModelViewSet):
             md5_hash = data['md5_hash']
             sha256_hash = data['sha256_hash']
             
-            # Get folder or create root if not specified
             if folder_id:
                 folder = get_object_or_404(Folder, id=folder_id, owner=profile)
             else:
@@ -224,7 +209,6 @@ class FileViewSet(viewsets.ModelViewSet):
                     defaults={'name': 'Root', 'path': ''}
                 )
             
-            # Check for duplicates using provided hashes
             existing_file = File.objects.filter(
                 owner=profile,
                 md5_hash=md5_hash,
@@ -237,7 +221,6 @@ class FileViewSet(viewsets.ModelViewSet):
                     'existing_file': FileSerializer(existing_file, context={'request': request}).data
                 }, status=status.HTTP_409_CONFLICT)
             
-            # Create file record with CDN URL
             file_instance = File.objects.create(
                 filename=filename,
                 original_filename=original_filename,
@@ -249,20 +232,18 @@ class FileViewSet(viewsets.ModelViewSet):
                 cdn_url=cdn_url,
                 md5_hash=md5_hash,
                 sha256_hash=sha256_hash,
-                is_processed=True,  # Assume client-uploaded files are processed
+                is_processed=True,  #client Side did the job :)
                 processing_status='completed',
                 upload_ip=self.get_client_ip()
             )
             
-            # Create processing jobs for thumbnails if needed
             if file_instance.mime_type.startswith('image/'):
                 ProcessingJob.objects.create(
                     file=file_instance,
                     job_type='thumbnail',
-                    priority=3  # Lower priority since file is already uploaded
+                    priority=3
                 )
             
-            # Log activity
             ActivityLog.objects.create(
                 user=profile,
                 action_type='upload',
@@ -288,15 +269,12 @@ class FileViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
-        """Get download URL for a file"""
         file_instance = self.get_object()
         profile = Profile.objects.get(user=request.user)
         
-        # Update last accessed time
         file_instance.last_accessed = timezone.now()
         file_instance.save(update_fields=['last_accessed'])
         
-        # Log activity
         ActivityLog.objects.create(
             user=profile,
             action_type='download',
@@ -307,7 +285,6 @@ class FileViewSet(viewsets.ModelViewSet):
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
-        # Return the CDN URL for download
         if not file_instance.cdn_url:
             return Response({
                 'error': 'File URL not available'
@@ -322,7 +299,6 @@ class FileViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def star(self, request, pk=None):
-        """Star/unstar a file"""
         file_instance = self.get_object()
         profile = Profile.objects.get(user=request.user)
         
@@ -340,11 +316,9 @@ class FileViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def starred(self, request):
-        """Get starred files"""
         profile = Profile.objects.get(user=request.user)
         starred_items = StarredItem.objects.filter(user=profile, resource_type='file')
         
-        # Get the actual files
         file_ids = [item.resource_id for item in starred_items]
         files = File.objects.filter(id__in=file_ids, owner=profile)
         
@@ -353,7 +327,6 @@ class FileViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def recent(self, request):
-        """Get recently accessed files"""
         profile = Profile.objects.get(user=request.user)
         recent_files = File.objects.filter(owner=profile).order_by('-last_accessed')[:20]
         
@@ -377,7 +350,6 @@ class ShareViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def public(self, request):
-        """Access public share by token"""
         token = request.query_params.get('token')
         if not token:
             return Response({'error': 'Token required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -387,7 +359,6 @@ class ShareViewSet(viewsets.ModelViewSet):
             if share.is_expired():
                 return Response({'error': 'Share expired'}, status=status.HTTP_410_GONE)
             
-            # Log access
             ShareAccessLog.objects.create(
                 share=share,
                 access_type='view',
@@ -428,18 +399,19 @@ class TrashViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
-        """Restore item from trash"""
         trash_item = self.get_object()
         
-        # In a real implementation, you'd restore the actual file/folder
-        # For now, just delete the trash record
+        if trash_item.resource_type == 'file':
+            file = File.objects.get(id=trash_item.resource_id)
+            file.is_trashed = False
+            file.save()
+        
         trash_item.delete()
         
         return Response({'message': 'Item restored successfully'})
 
     @action(detail=False, methods=['post'])
     def empty(self, request):
-        """Empty entire trash"""
         profile = Profile.objects.get(user=request.user)
         TrashItem.objects.filter(user=profile).delete()
         
@@ -449,25 +421,20 @@ class DashboardAPIView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Get dashboard statistics"""
         profile = Profile.objects.get(user=request.user)
         
-        # Get basic stats
         total_files = File.objects.filter(owner=profile).count()
         total_folders = Folder.objects.filter(owner=profile).count()
         total_size = File.objects.filter(owner=profile).aggregate(
             total=Sum('file_size')
         )['total'] or 0
         
-        # Recent activity
-        recent_activity = ActivityLog.objects.filter(user=profile).order_by('-created_at')[:10]
+        recent_activity     = ActivityLog.objects.filter(user=profile).order_by('-created_at')[:10]
         activity_serializer = ActivityLogSerializer(recent_activity, many=True)
         
-        # Recent files
-        recent_files = File.objects.filter(owner=profile).order_by('-created_at')[:5]
+        recent_files     = File.objects.filter(owner=profile).order_by('-created_at')[:5]
         files_serializer = FileSerializer(recent_files, many=True, context={'request': request})
         
-        # Storage usage by type
         storage_by_type = File.objects.filter(owner=profile).values('mime_type').annotate(
             count=Count('id'),
             size=Sum('file_size')
@@ -486,7 +453,6 @@ class DashboardAPIView(APIView):
         })
     
     def human_readable_size(self, size_bytes):
-        """Convert bytes to human readable format"""
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size_bytes < 1024.0:
                 return f"{size_bytes:.1f} {unit}"
@@ -497,20 +463,17 @@ class SearchAPIView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Global search across files and folders"""
         query = request.query_params.get('q', '').strip()
         if not query:
             return Response({'error': 'Search query required'}, status=status.HTTP_400_BAD_REQUEST)
         
         profile = Profile.objects.get(user=request.user)
         
-        # Search files
         files = File.objects.filter(
             owner=profile,
             filename__icontains=query
         ).order_by('-created_at')[:20]
         
-        # Search folders
         folders = Folder.objects.filter(
             owner=profile,
             name__icontains=query
@@ -527,7 +490,6 @@ class SearchAPIView(APIView):
             }
         })
 
-# Additional utility views for file processing, analytics, etc.
 
 class FileAnalyticsViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = FileAnalyticsSerializer
@@ -546,9 +508,7 @@ class ProcessingJobViewSet(viewsets.ReadOnlyModelViewSet):
         return ProcessingJob.objects.filter(file__owner=profile).order_by('-created_at')
 
 class ZeroXZeroUploadView(APIView):
-    """
-    Proxy view to upload files to 0x0.st and return the response
-    """
+    #Proxy view to upload files to 0x0.st
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
     
