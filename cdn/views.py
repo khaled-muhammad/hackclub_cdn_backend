@@ -40,7 +40,7 @@ class FolderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         profile = Profile.objects.get(user=self.request.user)
-        return Folder.objects.filter(owner=profile).order_by('name')
+        return Folder.objects.filter(owner=profile, is_trashed=False).order_by('name')
 
     def perform_create(self, serializer):
         profile = Profile.objects.get(user=self.request.user)
@@ -58,6 +58,8 @@ class FolderViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         # Move folder to trash instead of permanent delete
         profile = Profile.objects.get(user=self.request.user)
+        instance.is_trashed = True
+        instance.save()
         TrashItem.objects.create(
             user=profile,
             resource_type='folder',
@@ -73,7 +75,6 @@ class FolderViewSet(viewsets.ModelViewSet):
             ip_address=self.get_client_ip(),
             user_agent=self.request.META.get('HTTP_USER_AGENT', '')
         )
-        super().perform_destroy(instance)
 
     def get_client_ip(self):
         x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
@@ -108,8 +109,8 @@ class FolderViewSet(viewsets.ModelViewSet):
             defaults={'name': 'Root', 'path': ''}
         )
         
-        subfolders = Folder.objects.filter(owner=profile, parent=root_folder).order_by('name')
-        files = File.objects.filter(owner=profile, folder=root_folder).order_by('filename')
+        subfolders = Folder.objects.filter(owner=profile, parent=root_folder, is_trashed=False).order_by('name')
+        files = File.objects.filter(owner=profile, folder=root_folder, is_trashed=False).order_by('filename')
         
         folder_serializer = FolderSerializer(subfolders, many=True, context={'request': request})
         file_serializer = FileSerializer(files, many=True, context={'request': request})
@@ -127,7 +128,7 @@ class FileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         profile = Profile.objects.get(user=self.request.user)
-        queryset = File.objects.filter(owner=profile)
+        queryset = File.objects.filter(owner=profile, is_trashed=False)
         
         folder_id = self.request.query_params.get('folder_id')
         if folder_id:

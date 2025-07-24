@@ -20,6 +20,8 @@ class Folder(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    is_trashed = models.BooleanField(default=False)
+
     class Meta:
         unique_together = ['owner', 'parent', 'name']
         indexes = [
@@ -302,7 +304,7 @@ class TrashItem(models.Model):
     deleted_at          = models.DateTimeField(auto_now_add=True)
     permanent_delete_at = models.DateTimeField()
     cdn_url             = models.URLField()
-    
+
     class Meta:
         indexes = [
             models.Index(fields=['user']),
