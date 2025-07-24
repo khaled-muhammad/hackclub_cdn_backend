@@ -406,6 +406,10 @@ class TrashViewSet(viewsets.ModelViewSet):
             file = File.objects.get(id=trash_item.resource_id)
             file.is_trashed = False
             file.save()
+        else:
+            folder = Folder.objects.get(id=trash_item.resource_id)
+            folder.is_trashed = False
+            folder.save()
         
         trash_item.delete()
         

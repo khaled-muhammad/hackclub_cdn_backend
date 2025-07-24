@@ -9,6 +9,13 @@ import secrets
 
 # Create your models here.
 
+PERMISSION_LEVELS = [
+    ('view', 'View Only'),
+    ('download', 'Download'),
+    ('edit', 'Edit'),
+    ('admin', 'Admin'),
+]
+
 class Folder(models.Model):
     id      = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name    = models.CharField(max_length=255)
@@ -135,19 +142,15 @@ class Share(models.Model):
         ('folder', 'Folder'),
     ]
     
-    PERMISSION_LEVELS = [
-        ('view', 'View Only'),
-        ('download', 'Download'),
-        ('edit', 'Edit'),
-        ('admin', 'Admin'),
-    ]
-    
     id                  = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     resource_type       = models.CharField(max_length=10, choices=RESOURCE_TYPES)
     resource_id         = models.UUIDField()
     owner               = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='owned_shares')
-    shared_with_user    = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True, blank=True, related_name='received_shares')
-    
+    shared_with         = models.ManyToManyField(
+        Profile,
+        through='SharedUserPermission',
+        related_name='received_shared_resources'
+    )
     permission_level    = models.CharField(max_length=20, choices=PERMISSION_LEVELS, default='view')
     
     is_public           = models.BooleanField(default=False)
@@ -201,6 +204,15 @@ class Share(models.Model):
         elif self.resource_type == 'folder':
             return Folder.objects.filter(id=self.resource_id).first()
         return None
+
+class SharedUserPermission(models.Model):
+    share               = models.ForeignKey(Share, on_delete=models.CASCADE)
+    user                = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    permission_level    = models.CharField(max_length=20, choices=PERMISSION_LEVELS, default='view')
+    created_at          = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['share', 'user']
 
 class ShareAccessLog(models.Model):
     ACCESS_TYPES = [
