@@ -172,7 +172,6 @@ class Share(models.Model):
         indexes = [
             models.Index(fields=['resource_type', 'resource_id']),
             models.Index(fields=['owner']),
-            models.Index(fields=['shared_with_user']),
             models.Index(fields=['public_token']),
             models.Index(fields=['is_public', 'expires_at']),
         ]
