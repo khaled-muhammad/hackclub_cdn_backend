@@ -1,6 +1,6 @@
 # HackClub CDN API Documentation
 
-This document provides comprehensive documentation for the HackClub CDN REST API endpoints. This is a part of Hack Club CDN project
+This document provides comprehensive documentation for the HackClub CDN REST API endpoints. This is a part of Hack Club CDN project (It is the backend of the project)
 
 ## Authentication
 
