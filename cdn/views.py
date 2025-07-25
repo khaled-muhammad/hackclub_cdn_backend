@@ -40,7 +40,16 @@ class FolderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         profile = Profile.objects.get(user=self.request.user)
-        return Folder.objects.filter(owner=profile, is_trashed=False).order_by('name')
+        owned_folders = Folder.objects.filter(owner=profile, is_trashed=False)
+        
+        shared_folder_ids = Share.objects.filter(
+            resource_type='folder',
+            shareduserpermission__user=profile
+        ).values_list('resource_id', flat=True)
+        
+        shared_folders = Folder.objects.filter(id__in=shared_folder_ids, is_trashed=False)
+        
+        return (owned_folders | shared_folders).distinct().order_by('name')
 
     def perform_create(self, serializer):
         profile = Profile.objects.get(user=self.request.user)
@@ -128,11 +137,37 @@ class FileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         profile = Profile.objects.get(user=self.request.user)
-        queryset = File.objects.filter(owner=profile, is_trashed=False)
+        
+        owned_files = File.objects.filter(owner=profile, is_trashed=False)
+        
+        shared_file_ids = Share.objects.filter(
+            resource_type='file',
+            shareduserpermission__user=profile
+        ).values_list('resource_id', flat=True)
+        
+        shared_folder_ids = Share.objects.filter(
+            resource_type='folder',
+            shareduserpermission__user=profile
+        ).values_list('resource_id', flat=True)
+        
+        files_in_shared_folders = File.objects.filter(folder_id__in=shared_folder_ids, is_trashed=False)
+        shared_files = File.objects.filter(id__in=shared_file_ids, is_trashed=False)
+        
+        queryset = (owned_files | shared_files | files_in_shared_folders).distinct()
         
         folder_id = self.request.query_params.get('folder_id')
         if folder_id:
-            queryset = queryset.filter(folder_id=folder_id)
+            is_owned = Folder.objects.filter(id=folder_id, owner=profile).exists()
+            is_shared = Share.objects.filter(
+                resource_type='folder',
+                resource_id=folder_id,
+                shareduserpermission__user=profile
+            ).exists()
+            
+            if is_owned or is_shared:
+                queryset = queryset.filter(folder_id=folder_id)
+            else:
+                return File.objects.none()
         
         search = self.request.query_params.get('search')
         if search:
@@ -166,6 +201,9 @@ class FileViewSet(viewsets.ModelViewSet):
             cdn_url=instance.cdn_url,
             original_path=instance.folder.path if instance.folder else ''
         )
+
+        instance.is_trashed = True
+        instance.save()
         
         ActivityLog.objects.create(
             user=profile,
@@ -321,7 +359,7 @@ class FileViewSet(viewsets.ModelViewSet):
         starred_items = StarredItem.objects.filter(user=profile, resource_type='file')
         
         file_ids = [item.resource_id for item in starred_items]
-        files = File.objects.filter(id__in=file_ids, owner=profile)
+        files = File.objects.filter(id__in=file_ids, owner=profile, is_trashed=False)
         
         serializer = FileSerializer(files, many=True, context={'request': request})
         return Response(serializer.data)
@@ -352,7 +390,7 @@ class ShareViewSet(viewsets.ModelViewSet):
 
 
         for item in shared_data:
-                profile = Profile.objects.get(user__email=item['user_email'])
+                profile = Profile.objects.get(user__email=item['user_email']['username'])
                 SharedUserPermission.objects.create(
                         share=share,
                         user=profile,
@@ -474,7 +512,20 @@ class ShareViewSet(viewsets.ModelViewSet):
                 user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
             
-            return Response(ShareSerializer(share, context={'request': request}).data)
+            resource = share.resource_object
+            if resource is None:
+                return Response({'error': 'Resource not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            if share.resource_type == 'file':
+                resource_data = FileSerializer(resource, context={'request': request}).data
+            else:
+                files = resource.files.all().order_by('filename')
+                resource_data = FileSerializer(files, many=True).data
+
+            return Response({
+                'share': ShareSerializer(share, context={'request': request}).data,
+                'resource': resource_data
+            })
             
         except Share.DoesNotExist:
             return Response({'error': 'Invalid token'}, status=status.HTTP_404_NOT_FOUND)
@@ -583,11 +634,13 @@ class SearchAPIView(APIView):
         
         files = File.objects.filter(
             owner=profile,
-            filename__icontains=query
+            is_trashed=False,
+            original_filename__icontains=query
         ).order_by('-created_at')[:20]
         
         folders = Folder.objects.filter(
             owner=profile,
+            is_trashed=False,
             name__icontains=query
         ).order_by('-created_at')[:20]
         

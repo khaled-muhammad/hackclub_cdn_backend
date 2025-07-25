@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, re_path, include
 
 from fronty.views import FrontendAppView
-from my_auth.views import slack_callback, temp_auth_code, update_password, fetch_me, CookieTokenRefreshView
+from my_auth.views import slack_callback, temp_auth_code, update_password, fetch_me, CookieTokenRefreshView, logout_view, login_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,7 +29,8 @@ urlpatterns = [
     path('api/auth/reset_password', update_password),
     path('api/auth/me', fetch_me),
     path('api/auth/refresh', CookieTokenRefreshView.as_view(), name='token_refresh'),
-    
+    path('api/auth/logout', logout_view),
+    path('api/auth/login', login_view),
     path('', include('cdn.urls')),
     
     # Frontend (uncomment when ready)

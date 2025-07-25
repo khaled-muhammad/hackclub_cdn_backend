@@ -13,6 +13,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from .models import Profile, ShortLivedAuth
 import secrets
 from datetime import timedelta
+from django.contrib.auth import authenticate
 
 User = get_user_model()
 
@@ -132,7 +133,7 @@ def temp_auth_code(request):
         httponly=True,
         secure=True,
         samesite='None',
-        max_age=300
+        max_age=86400 * 15
     )
 
     response.set_cookie(
@@ -141,7 +142,7 @@ def temp_auth_code(request):
         httponly=True,
         secure=True,
         samesite='None',
-        max_age=86400
+        max_age=86400 * 30
     )
 
     short_auth.delete()
@@ -208,10 +209,81 @@ class CookieTokenRefreshView(TokenRefreshView):
         response.set_cookie(
             key='access_token',
             value=access_token,
-            max_age=int(timedelta(minutes=5).total_seconds()),
+            max_age=int(timedelta(days=15).total_seconds()),
             httponly=True,
             secure=True,
             samesite='None',
         )
 
         return response
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    email = request.data.get('email')
+    password = request.data.get('password')
+
+    if not email or not password:
+        return Response({'detail': 'Email and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = authenticate(request, username=email, password=password)
+
+    if user is None:
+        return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if not user.is_active:
+        return Response({'detail': 'Account is inactive.'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Generate tokens
+    refresh = RefreshToken.for_user(user)
+    access = refresh.access_token
+
+    # Set cookies
+    profile = Profile.objects.get(user=user)
+    response = JsonResponse({
+        'user': {
+            'id': user.id,
+            'name': user.get_full_name(),
+            'email': user.email,
+            'image': profile.profile_picture,
+        }
+    })
+
+    response.set_cookie(
+        key='access_token',
+        value=str(access),
+        httponly=True,
+        secure=True,
+        samesite='None',
+        max_age=86400 * 15  # 15 days
+    )
+
+    response.set_cookie(
+        key='refresh_token',
+        value=str(refresh),
+        httponly=True,
+        secure=True,
+        samesite='None',
+        max_age=86400 * 30  # 30 day
+    )
+
+    return response
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def logout_view(request):
+    response = Response({'detail': 'Logged out successfully.'})
+
+    response.delete_cookie(
+        key='access_token',
+        path='/',
+        samesite='None',
+    )
+
+    response.delete_cookie(
+        key='refresh_token',
+        path='/',
+        samesite='None',
+    )
+
+    return response
