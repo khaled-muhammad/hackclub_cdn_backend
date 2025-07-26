@@ -200,7 +200,13 @@ class CookieTokenRefreshView(TokenRefreshView):
         try:
             serializer.is_valid(raise_exception=True)
         except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+            response = Response({'detail': str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+            response.delete_cookie(
+                key='refresh_token',
+                path='/',
+                samesite='None',
+            )
+            return response
 
         access_token = serializer.validated_data.get('access')
 
