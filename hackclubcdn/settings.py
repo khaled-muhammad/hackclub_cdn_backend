@@ -32,7 +32,7 @@ HACK_CLUB_TEAM_ID   = os.getenv('HACK_CLUB_TEAM_ID')
 FRONTEND_ENDPOINT   = os.getenv('FRONTEND_ENDPOINT')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', True)
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 ALLOWED_HOSTS = ['*']
 
